@@ -1,6 +1,6 @@
 {
-  "name": "MathWings",
-  "short_name": "MathWings",
+  "name": "Math Wings",
+  "short_name": "Math Wings",
   "description": "Your brain is the button - A math game where solving problems makes you fly!",
   "start_url": "/",
   "display": "standalone",

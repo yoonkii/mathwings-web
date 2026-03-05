@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "MathWings",
+  title: "Math Wings",
   description: "Your brain is the button - A math game where solving problems makes you fly!",
   manifest: "/manifest.json",
 };

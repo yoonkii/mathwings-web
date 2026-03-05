@@ -115,14 +115,14 @@ export function TitleScreen({ onStartGame, soundManager }: TitleScreenProps) {
           className="font-dseg14 text-5xl font-bold tracking-wider"
           style={{ color: colors.goldAccent }}
         >
-          FLAPPY
+          MATH
         </h1>
         <div className="h-3" />
         <h2
           className="font-dseg14 text-4xl font-bold tracking-wider"
           style={{ color: colors.terminalGreen }}
         >
-          CALCULATOR
+          WINGS
         </h2>
         <div className="h-2" />
         <p className="text-sm tracking-wider" style={{ color: '#ffffff99' }}>
