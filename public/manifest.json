@@ -1,0 +1,17 @@
+{
+  "name": "MathWings",
+  "short_name": "MathWings",
+  "description": "Your brain is the button - A math game where solving problems makes you fly!",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0D1B2A",
+  "theme_color": "#0D1B2A",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/images/char_default.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
