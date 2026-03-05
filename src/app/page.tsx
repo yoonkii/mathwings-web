@@ -137,7 +137,11 @@ function GameScreenWrapper({
       {/* Bottom 40%: Input area */}
       <div
         className="flex flex-col px-3 py-2"
-        style={{ height: '40%', backgroundColor: colors.keypadBackground }}
+        style={{
+          height: '40%',
+          backgroundColor: colors.keypadBackground,
+          paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0px))',
+        }}
       >
         <div className="mb-2">
           <AnswerInput
