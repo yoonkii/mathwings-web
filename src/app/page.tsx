@@ -29,8 +29,8 @@ export default function Home() {
   if (!soundManager) {
     return (
       <div
-        className="w-screen h-screen flex items-center justify-center"
-        style={{ backgroundColor: colors.skyBlue }}
+        className="w-screen flex items-center justify-center"
+        style={{ backgroundColor: colors.skyBlue, height: '100dvh' }}
       >
         <p className="font-dseg14 text-xl" style={{ color: colors.terminalGreen }}>
           Loading...
@@ -40,7 +40,7 @@ export default function Home() {
   }
 
   return (
-    <div className="w-screen h-screen max-w-lg mx-auto overflow-hidden">
+    <div className="w-screen max-w-lg mx-auto overflow-hidden" style={{ height: '100dvh' }}>
       {screen === 'title' && (
         <TitleScreen
           soundManager={soundManager}
