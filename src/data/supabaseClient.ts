@@ -23,13 +23,20 @@ export async function submitScore(
   playerName: string,
   score: number,
 ): Promise<boolean> {
-  if (!supabase) return false;
+  if (!supabase) {
+    console.error('Supabase not configured');
+    return false;
+  }
 
   const { error } = await supabase
     .from('leaderboard')
     .insert({ player_name: playerName || 'Anonymous', score });
 
-  return !error;
+  if (error) {
+    console.error('Supabase insert error:', error.message, error.details, error.hint);
+    return false;
+  }
+  return true;
 }
 
 export async function getGlobalTopScores(
@@ -43,6 +50,9 @@ export async function getGlobalTopScores(
     .order('score', { ascending: false })
     .limit(limit);
 
-  if (error || !data) return [];
-  return data as LeaderboardEntry[];
+  if (error) {
+    console.error('Supabase select error:', error.message, error.details, error.hint);
+    return [];
+  }
+  return (data as LeaderboardEntry[]) ?? [];
 }
