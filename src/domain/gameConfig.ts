@@ -27,7 +27,7 @@ export const GameConfig = {
   BIRD_SIZE_RATIO: 0.08, // bird width = 8% of screen width (base/logical size)
   BIRD_ASPECT_RATIO: 1.0, // bird height/width ratio
   BIRD_SPRITE_SCALE: 2.0, // sprite renders at 2x logical size
-  BIRD_HITBOX_RATIO: 0.58, // hitbox = 58% of visual sprite size (20% smaller than 73%)
+  BIRD_HITBOX_RATIO: 0.754, // hitbox = 58% * 1.3 (30% larger)
   BIRD_HITBOX_Y_OFFSET_RATIO: -0.35, // shift hitbox center upward by 35% of radius
 
   // Timing
