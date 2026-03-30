@@ -5,8 +5,8 @@
  */
 export const GameConfig = {
   // Physics - very forgiving, gives player time to solve problems
-  GRAVITY: 450, // pixels/sec^2 (very gentle, floaty)
-  TERMINAL_VELOCITY: 350, // max fall speed (capped)
+  GRAVITY: 338, // pixels/sec^2 (very gentle, floaty)
+  TERMINAL_VELOCITY: 263, // max fall speed (capped)
   FLAP_IMPULSE: -300, // upward velocity - tuned for web (shorter game area)
 
   // Pipe configuration
