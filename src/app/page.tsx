@@ -28,6 +28,20 @@ export default function Home() {
     return () => sm.release();
   }, []);
 
+  // Pause/resume audio when tab or app goes to background
+  useEffect(() => {
+    if (!soundManager) return;
+    const handleVisibility = () => {
+      if (document.hidden) {
+        soundManager.pauseAll();
+      } else {
+        soundManager.resumeAll();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [soundManager]);
+
   if (!soundManager) {
     return (
       <div
