@@ -156,7 +156,7 @@ function GameScreenWrapper({
         style={{
           height: '40%',
           backgroundColor: colors.keypadBackground,
-          paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0px))',
+          paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))',
         }}
       >
         <div className="mb-2">
