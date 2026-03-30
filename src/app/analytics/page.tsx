@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   AnalyticsSummary,
   DailyRow,
@@ -8,7 +9,38 @@ import {
   getDailyBreakdown,
 } from '../../data/analyticsClient';
 
+const ANALYTICS_PASSWORD = process.env.NEXT_PUBLIC_ANALYTICS_PASSWORD;
+
 export default function AnalyticsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-950 text-gray-100 flex items-center justify-center">
+          <p className="text-lg text-gray-400">Loading...</p>
+        </div>
+      }
+    >
+      <AnalyticsGate />
+    </Suspense>
+  );
+}
+
+function AnalyticsGate() {
+  const searchParams = useSearchParams();
+  const key = searchParams.get('key');
+
+  if (ANALYTICS_PASSWORD && key !== ANALYTICS_PASSWORD) {
+    return (
+      <div className="min-h-screen bg-gray-950 text-gray-100 flex items-center justify-center">
+        <p className="text-gray-500">404 | Not Found</p>
+      </div>
+    );
+  }
+
+  return <AnalyticsDashboard />;
+}
+
+function AnalyticsDashboard() {
   const [summaries, setSummaries] = useState<(AnalyticsSummary | null)[]>([
     null,
     null,
