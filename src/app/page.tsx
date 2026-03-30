@@ -12,6 +12,7 @@ import { SoundManager } from '../audio/soundManager';
 import { useGameState } from '../hooks/useGameState';
 import { GameState } from '../domain/models';
 import { colors } from '../theme/colors';
+import { trackPageVisit } from '../data/analyticsClient';
 
 type Screen = 'title' | 'game' | 'gameOver';
 
@@ -23,6 +24,7 @@ export default function Home() {
   useEffect(() => {
     const sm = new SoundManager();
     setSoundManager(sm);
+    trackPageVisit();
     return () => sm.release();
   }, []);
 

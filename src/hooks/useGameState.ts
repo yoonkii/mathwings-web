@@ -8,6 +8,7 @@ import {
 } from '../domain/models';
 import { GameEngine } from '../domain/gameEngine';
 import { addScore as addScoreToStore, getHighScore } from '../data/scoreStore';
+import { trackGameStart, trackGameOver } from '../data/analyticsClient';
 import { SoundManager } from '../audio/soundManager';
 import { useGameLoop } from './useGameLoop';
 import { useKeyboard } from './useKeyboard';
@@ -21,6 +22,7 @@ interface GameOverData {
 export function useGameState(soundManager: SoundManager) {
   const engineRef = useRef<GameEngine | null>(null);
   const gameOverHandledRef = useRef(false);
+  const gameStartTimeRef = useRef<number>(0);
   const [snapshot, setSnapshot] = useState<GameSnapshot>({
     bird: new Bird({ x: 100, y: 300, width: 50, height: 50 }),
     pipes: [],
@@ -48,6 +50,8 @@ export function useGameState(soundManager: SoundManager) {
     soundManager.ensureAudioContext();
     engine.start();
     soundManager.startBgm();
+    gameStartTimeRef.current = Date.now();
+    trackGameStart();
     setSnapshot(engine.getSnapshot());
   }, [soundManager]);
 
@@ -63,6 +67,10 @@ export function useGameState(soundManager: SoundManager) {
       gameOverHandledRef.current = true;
       soundManager.playHit();
       soundManager.stopBgm();
+
+      // Track analytics
+      const durationSeconds = Math.round((Date.now() - gameStartTimeRef.current) / 1000);
+      trackGameOver({ score: snap.score, duration_seconds: durationSeconds });
 
       // Save score
       const rank = addScoreToStore(snap.score);
