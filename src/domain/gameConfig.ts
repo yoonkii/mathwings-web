@@ -44,7 +44,7 @@ export const GameConfig = {
   ROTATION_LERP_FACTOR: 0.1, // smoothing for rotation changes
 
   // Input
-  MAX_INPUT_LENGTH: 6, // maximum digits for answer input
+  MAX_INPUT_LENGTH: 4, // maximum digits for answer input (max answer is 1998)
 
   // Game area
   GAME_AREA_RATIO: 0.6, // top 60% for game

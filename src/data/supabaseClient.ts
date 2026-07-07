@@ -28,9 +28,16 @@ export async function submitScore(
     return false;
   }
 
+  if (!Number.isSafeInteger(score) || score < 0) {
+    console.error('Invalid score:', score);
+    return false;
+  }
+
+  const trimmedName = playerName.trim().slice(0, 20);
+
   const { error } = await supabase
     .from('leaderboard')
-    .insert({ player_name: playerName || 'Anonymous', score });
+    .insert({ player_name: trimmedName || 'Anonymous', score });
 
   if (error) {
     console.error('Supabase insert error:', error.message, error.details, error.hint);

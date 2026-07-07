@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { colors } from '../theme/colors';
 import { SoundManager } from '../audio/soundManager';
 
@@ -12,6 +12,19 @@ interface SettingsSheetProps {
 export function SettingsSheet({ soundManager, onDismiss }: SettingsSheetProps) {
   const [bgmVol, setBgmVol] = useState(soundManager.bgmVolume);
   const [sfxVol, setSfxVol] = useState(soundManager.sfxVolume);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    panelRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onDismiss();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onDismiss]);
 
   return (
     <div
@@ -20,7 +33,12 @@ export function SettingsSheet({ soundManager, onDismiss }: SettingsSheetProps) {
       onClick={onDismiss}
     >
       <div
-        className="w-full max-w-sm mx-8 rounded-2xl p-6"
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-title"
+        tabIndex={-1}
+        className="w-full max-w-sm mx-8 rounded-2xl p-6 outline-none"
         style={{
           backgroundColor: colors.keypadBackground,
           border: `1px solid ${colors.terminalGreen}4D`,
@@ -29,6 +47,7 @@ export function SettingsSheet({ soundManager, onDismiss }: SettingsSheetProps) {
       >
         {/* Title */}
         <h2
+          id="settings-title"
           className="text-center text-2xl font-bold tracking-widest mb-2"
           style={{ color: colors.terminalGreen }}
         >
@@ -48,7 +67,7 @@ export function SettingsSheet({ soundManager, onDismiss }: SettingsSheetProps) {
           displayText={`${Math.round(bgmVol * 100)}%`}
           onChange={(v) => {
             setBgmVol(v);
-            soundManager.bgmVolume = v;
+            soundManager.setBgmVolume(v);
           }}
         />
 
@@ -61,7 +80,7 @@ export function SettingsSheet({ soundManager, onDismiss }: SettingsSheetProps) {
           displayText={sfxVol > 0 ? `${Math.round(sfxVol * 100)}%` : 'OFF'}
           onChange={(v) => {
             setSfxVol(v);
-            soundManager.sfxVolume = v;
+            soundManager.setSfxVolume(v);
           }}
         />
 
@@ -102,13 +121,14 @@ function SliderRow({
         </span>
         <span
           className="text-sm font-bold tracking-wider"
-          style={{ color: value > 0 ? colors.terminalGreen : '#ffffff66' }}
+          style={{ color: value > 0 ? colors.terminalGreen : '#ffffffA6' }}
         >
           {displayText}
         </span>
       </div>
       <input
         type="range"
+        aria-label={label}
         min="0"
         max="1"
         step="0.05"

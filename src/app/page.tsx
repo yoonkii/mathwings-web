@@ -20,9 +20,12 @@ export default function Home() {
   const [screen, setScreen] = useState<Screen>('title');
   const [soundManager, setSoundManager] = useState<SoundManager | null>(null);
 
-  // Initialize SoundManager once (client-side only)
+  // Initialize SoundManager once (client-side only). Intentional one-time
+  // setState in effect: lazy useState would run during SSR/hydration and
+  // mismatch the server-rendered loading state.
   useEffect(() => {
     const sm = new SoundManager();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSoundManager(sm);
     trackPageVisit();
     return () => sm.release();
@@ -35,6 +38,7 @@ export default function Home() {
       if (document.hidden) {
         soundManager.pauseAll();
       } else {
+        soundManager.ensureAudioContext();
         soundManager.resumeAll();
       }
     };
@@ -98,25 +102,52 @@ function GameScreenWrapper({
 }) {
   const game = useGameState(soundManager);
   const gameContainerRef = useRef<HTMLDivElement>(null);
+  const gameAreaRef = useRef<HTMLDivElement>(null);
   const [gameOverData, setGameOverData] = useState<GameOverData | null>(null);
 
-  // Initialize engine with container dimensions on mount
+  // Latest game state for the ResizeObserver callback (avoids stale closure)
+  const gameStateRef = useRef(game.snapshot.gameState);
+  gameStateRef.current = game.snapshot.gameState;
+
+  // Initialize engine with game area dimensions on mount
   useEffect(() => {
-    const container = gameContainerRef.current;
-    if (!container) return;
+    const gameArea = gameAreaRef.current;
+    if (!gameArea) return;
 
     // Use rAF to ensure layout is computed
     const rafId = requestAnimationFrame(() => {
-      const rect = container.getBoundingClientRect();
+      const rect = gameArea.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {
-        const gameAreaHeight = rect.height * 0.6;
-        game.initialize(rect.width, gameAreaHeight);
+        game.initialize(rect.width, rect.height);
       }
     });
 
     return () => cancelAnimationFrame(rafId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Keep engine coordinates in sync with the game area's display size
+  // (window resize, device rotation)
+  useEffect(() => {
+    const gameArea = gameAreaRef.current;
+    if (!gameArea) return;
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      const { width, height } = entry.contentRect;
+      if (width <= 0 || height <= 0) return;
+      if (gameStateRef.current === GameState.READY) {
+        // Re-initialize while waiting to start so proportions are fresh
+        game.initialize(width, height);
+      } else {
+        game.resize(width, height);
+      }
+    });
+    observer.observe(gameArea);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game.initialize, game.resize]);
 
   // Watch for game over state from the game hook
   useEffect(() => {
@@ -132,9 +163,9 @@ function GameScreenWrapper({
   }, [soundManager, game]);
 
   return (
-    <div ref={gameContainerRef} className="w-full h-full flex flex-col relative">
-      {/* Top 60%: Game view */}
-      <div className="relative" style={{ height: '60%' }}>
+    <div ref={gameContainerRef} className="game-screen w-full h-full flex relative">
+      {/* Game view (60% height, or 60% width in short landscape) */}
+      <div ref={gameAreaRef} className="game-screen-canvas relative">
         <GameView snapshot={game.snapshot} onTapToStart={game.startGame} />
 
         {/* Score overlay */}
@@ -142,19 +173,20 @@ function GameScreenWrapper({
           <ScoreDisplay score={game.snapshot.score} />
         )}
 
-        {/* Math problem at bottom of game view */}
-        {game.snapshot.gameState === GameState.PLAYING && (
+        {/* Math problem at bottom of game view (shown during READY too so
+            the player can solve the first problem before starting) */}
+        {(game.snapshot.gameState === GameState.READY ||
+          game.snapshot.gameState === GameState.PLAYING) && (
           <div className="absolute bottom-2 left-0 right-0 flex justify-center">
             <MathProblemDisplay problem={game.snapshot.currentProblem} />
           </div>
         )}
       </div>
 
-      {/* Bottom 40%: Input area */}
+      {/* Input area (40% height, or 40% width in short landscape) */}
       <div
-        className="flex flex-col px-3 py-2"
+        className="game-screen-input flex flex-col min-h-0 px-3 py-2"
         style={{
-          height: '40%',
           backgroundColor: colors.keypadBackground,
           paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))',
         }}
@@ -165,7 +197,7 @@ function GameScreenWrapper({
             feedback={game.inputFeedback}
           />
         </div>
-        <div className="flex-1">
+        <div className="flex-1 min-h-0">
           <NumericKeypad
             onDigit={game.onDigitPressed}
             onBackspace={game.onBackspacePressed}

@@ -75,6 +75,57 @@ export interface AnalyticsSummary {
 
 type PeriodType = 'daily' | 'weekly' | 'monthly';
 
+interface AnalyticsEventRow {
+  session_id: string;
+  event_type: string;
+  event_data: Record<string, unknown> | null;
+  created_at: string;
+}
+
+const PAGE_SIZE = 1000;
+const MAX_ROWS = 20000;
+
+// Supabase caps .select() at 1000 rows per request; paginate to fetch everything.
+async function fetchAllEvents(
+  client: SupabaseClient,
+  sinceIso: string,
+): Promise<AnalyticsEventRow[] | null> {
+  const all: AnalyticsEventRow[] = [];
+  let offset = 0;
+
+  while (offset < MAX_ROWS) {
+    const { data, error } = await client
+      .from('analytics_events')
+      .select('session_id, event_type, event_data, created_at')
+      .gte('created_at', sinceIso)
+      .order('created_at', { ascending: true })
+      .range(offset, offset + PAGE_SIZE - 1);
+
+    if (error || !data) return all.length > 0 ? all : null;
+
+    all.push(...data);
+    if (data.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
+
+  return all;
+}
+
+// Coerce a possibly-malformed event value to a finite number in [0, 100000].
+function sanitizeNumber(v: unknown): number {
+  const n = typeof v === 'number' && Number.isFinite(v) ? v : 0;
+  return Math.min(Math.max(n, 0), 100000);
+}
+
+// Format a timestamp as the viewer's local YYYY-MM-DD.
+function localDay(iso: string): string {
+  const d = new Date(iso);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function periodStart(period: PeriodType): string {
   const now = new Date();
   if (period === 'daily') {
@@ -98,13 +149,8 @@ export async function getAnalyticsSummary(
 
   const since = periodStart(period);
 
-  const { data: events, error } = await client
-    .from('analytics_events')
-    .select('session_id, event_type, event_data, created_at')
-    .gte('created_at', since)
-    .order('created_at', { ascending: true });
-
-  if (error || !events) return null;
+  const events = await fetchAllEvents(client, since);
+  if (!events) return null;
 
   const visitSessions = new Set<string>();
   const playSessions = new Set<string>();
@@ -123,11 +169,12 @@ export async function getAnalyticsSummary(
       gamesPlayed++;
     }
     if (e.event_type === 'game_over') {
-      const data = e.event_data as Record<string, number> | null;
+      const data = e.event_data;
       if (data) {
-        totalScore += data.score ?? 0;
-        if ((data.score ?? 0) > maxScore) maxScore = data.score ?? 0;
-        totalDuration += data.duration_seconds ?? 0;
+        const score = sanitizeNumber(data.score);
+        totalScore += score;
+        if (score > maxScore) maxScore = score;
+        totalDuration += sanitizeNumber(data.duration_seconds);
         gameOverCount++;
       }
     }
@@ -168,13 +215,8 @@ export async function getDailyBreakdown(days: number = 30): Promise<DailyRow[]> 
   since.setDate(since.getDate() - days);
   since.setHours(0, 0, 0, 0);
 
-  const { data: events, error } = await client
-    .from('analytics_events')
-    .select('session_id, event_type, event_data, created_at')
-    .gte('created_at', since.toISOString())
-    .order('created_at', { ascending: true });
-
-  if (error || !events) return [];
+  const events = await fetchAllEvents(client, since.toISOString());
+  if (!events) return [];
 
   const dayMap = new Map<
     string,
@@ -182,7 +224,7 @@ export async function getDailyBreakdown(days: number = 30): Promise<DailyRow[]> 
   >();
 
   for (const e of events) {
-    const day = e.created_at.slice(0, 10); // YYYY-MM-DD
+    const day = localDay(e.created_at); // viewer-local YYYY-MM-DD
     if (!dayMap.has(day)) {
       dayMap.set(day, { visitors: new Set(), games: 0, totalScore: 0, gameOvers: 0 });
     }
@@ -191,8 +233,7 @@ export async function getDailyBreakdown(days: number = 30): Promise<DailyRow[]> 
     if (e.event_type === 'page_visit') d.visitors.add(e.session_id);
     if (e.event_type === 'game_start') d.games++;
     if (e.event_type === 'game_over') {
-      const data = e.event_data as Record<string, number> | null;
-      d.totalScore += data?.score ?? 0;
+      d.totalScore += sanitizeNumber(e.event_data?.score);
       d.gameOvers++;
     }
   }
