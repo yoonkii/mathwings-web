@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { colors } from '../theme/colors';
 import { getHighScore } from '../data/scoreStore';
 import { SettingsSheet } from './SettingsSheet';
@@ -79,6 +79,18 @@ export function TitleScreen({ onStartGame, soundManager }: TitleScreenProps) {
     return () => cancelAnimationFrame(rafRef.current);
   }, []);
 
+  // Start title BGM from a user gesture that stays on the title screen.
+  // Browsers' autoplay policy blocks audio until a user gesture, so BGM cannot
+  // start on plain page load — don't try to "fix" that by playing on mount.
+  // The primary gesture (click/Enter/Space) starts the game and stops title
+  // BGM, so we hook the gestures that don't leave the title screen instead.
+  const startTitleBgmIfNeeded = useCallback(() => {
+    soundManager.ensureAudioContext();
+    if (!soundManager.isTitleBgmActive()) {
+      soundManager.startTitleBgm();
+    }
+  }, [soundManager]);
+
   // Keyboard start (Enter or Space)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -88,11 +100,13 @@ export function TitleScreen({ onStartGame, soundManager }: TitleScreenProps) {
       if (e.key === 'Enter' || e.key === ' ') {
         if (e.key === ' ') e.preventDefault();
         onStartGame();
+      } else {
+        startTitleBgmIfNeeded();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showSettings, onStartGame]);
+  }, [showSettings, onStartGame, startTitleBgmIfNeeded]);
 
   const handleStart = () => {
     if (!showSettings) {
@@ -116,6 +130,7 @@ export function TitleScreen({ onStartGame, soundManager }: TitleScreenProps) {
         style={{ color: '#ffffffB3' }}
         onClick={(e) => {
           e.stopPropagation();
+          startTitleBgmIfNeeded();
           setShowSettings(true);
         }}
       >

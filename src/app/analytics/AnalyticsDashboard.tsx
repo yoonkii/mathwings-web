@@ -1,45 +1,14 @@
-'use client';
+import type { AnalyticsSummary, DailyRow } from '../../data/analyticsClient';
 
-import { useEffect, useState } from 'react';
-import {
-  AnalyticsSummary,
-  DailyRow,
-  getAnalyticsSummary,
-  getDailyBreakdown,
-} from '../../data/analyticsClient';
-
-export default function AnalyticsDashboard() {
-  const [summaries, setSummaries] = useState<(AnalyticsSummary | null)[]>([
-    null,
-    null,
-    null,
-  ]);
-  const [daily, setDaily] = useState<DailyRow[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function load() {
-      const [d, w, m, rows] = await Promise.all([
-        getAnalyticsSummary('daily'),
-        getAnalyticsSummary('weekly'),
-        getAnalyticsSummary('monthly'),
-        getDailyBreakdown(30),
-      ]);
-      setSummaries([d, w, m]);
-      setDaily(rows);
-      setLoading(false);
-    }
-    load();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-950 text-gray-100 flex items-center justify-center">
-        <p className="text-lg text-gray-400">Loading analytics...</p>
-      </div>
-    );
-  }
-
+// Presentational component: the server page (page.tsx) fetches the data and
+// passes it in as props, so no Supabase access happens in the browser.
+export default function AnalyticsDashboard({
+  summaries,
+  daily,
+}: {
+  summaries: (AnalyticsSummary | null)[];
+  daily: DailyRow[];
+}) {
   const noData = summaries.every((s) => s === null);
 
   return (

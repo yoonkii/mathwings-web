@@ -18,6 +18,16 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
+## Environment variables
+
+All Supabase access happens server-side (API routes and server pages); the browser never talks to Supabase directly.
+
+- `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` — preferred, server-only. The service role key bypasses RLS and must never be exposed to the client (no `NEXT_PUBLIC_` prefix).
+- `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` — legacy fallback, used by the server when the variables above are unset so existing deployments keep working.
+- `ANALYTICS_PASSWORD` — password for the `/analytics` dashboard (`/analytics?key=...`).
+
+Once a deploy with `SUPABASE_SERVICE_ROLE_KEY` is live, run `supabase/harden_policies.sql` in the Supabase SQL Editor to drop the anonymous RLS policies and fully close the browser path (see the header comment in that file for ordering details).
+
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
 ## Learn More

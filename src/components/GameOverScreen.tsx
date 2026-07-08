@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from 'react';
 import { colors } from '../theme/colors';
 import { getTopScores } from '../data/scoreStore';
 import {
-  isSupabaseConfigured,
   submitScore,
   getGlobalTopScores,
   LeaderboardEntry,
@@ -28,6 +27,7 @@ export function GameOverScreen({
   // Lazy init is safe: this component only mounts client-side (page gates on SoundManager)
   const [topScores] = useState<number[]>(() => getTopScores());
   const [globalScores, setGlobalScores] = useState<LeaderboardEntry[]>([]);
+  const [configured, setConfigured] = useState(false);
   const [playerName, setPlayerName] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -36,10 +36,12 @@ export function GameOverScreen({
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Load global leaderboard if Supabase is configured
-    if (isSupabaseConfigured()) {
-      getGlobalTopScores(20).then(setGlobalScores);
-    }
+    // Load the global leaderboard once; the response says whether the
+    // server-side leaderboard is configured.
+    getGlobalTopScores().then(({ configured, scores }) => {
+      setConfigured(configured);
+      setGlobalScores(scores);
+    });
   }, []);
 
   useEffect(() => {
@@ -67,7 +69,7 @@ export function GameOverScreen({
     if (success) {
       setSubmitted(true);
       // Refresh global scores
-      const updated = await getGlobalTopScores(20);
+      const { scores: updated } = await getGlobalTopScores();
       setGlobalScores(updated);
     } else {
       setSubmitError(true);
@@ -145,7 +147,7 @@ export function GameOverScreen({
         )}
 
         {/* Global score submission */}
-        {isSupabaseConfigured() && (
+        {configured && (
           <>
             <div className="h-4" />
             {!submitted ? (
@@ -210,7 +212,7 @@ export function GameOverScreen({
         )}
 
         {/* Tab buttons for local/global leaderboard */}
-        {isSupabaseConfigured() && globalScores.length > 0 && (
+        {configured && globalScores.length > 0 && (
           <>
             <div className="h-4" />
             <div className="flex gap-2 justify-center">

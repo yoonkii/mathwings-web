@@ -149,6 +149,11 @@ export class SoundManager {
     this.titleBgmAudio = null;
   }
 
+  /** True when title BGM exists and is currently playing (not paused). */
+  isTitleBgmActive(): boolean {
+    return this.titleBgmAudio !== null && !this.titleBgmAudio.paused;
+  }
+
   // --- Game BGM ---
 
   startBgm(): void {

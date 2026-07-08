@@ -1,4 +1,5 @@
 import AnalyticsDashboard from './AnalyticsDashboard';
+import { getAnalyticsSummary, getDailyBreakdown } from '../../data/supabaseServer';
 
 // Run the password check on every request (the env var never ships to the client).
 export const dynamic = 'force-dynamic';
@@ -20,5 +21,17 @@ export default async function AnalyticsPage({
     );
   }
 
-  return <AnalyticsDashboard />;
+  const [dailySummary, weeklySummary, monthlySummary, daily] = await Promise.all([
+    getAnalyticsSummary('daily'),
+    getAnalyticsSummary('weekly'),
+    getAnalyticsSummary('monthly'),
+    getDailyBreakdown(30),
+  ]);
+
+  return (
+    <AnalyticsDashboard
+      summaries={[dailySummary, weeklySummary, monthlySummary]}
+      daily={daily}
+    />
+  );
 }
