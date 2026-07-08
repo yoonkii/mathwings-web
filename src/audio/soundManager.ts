@@ -5,7 +5,12 @@
  * Ported from Android SoundManager.kt.
  */
 
-import { getBgmVolume, setBgmVolume, getSfxVolume, setSfxVolume } from '../data/settingsStore';
+import {
+  getBgmVolume,
+  setBgmVolume as persistBgmVolume,
+  getSfxVolume,
+  setSfxVolume as persistSfxVolume,
+} from '../data/settingsStore';
 
 // --- SFX tone definitions (matching Android ToneGenerator) ---
 
@@ -51,6 +56,9 @@ export class SoundManager {
   private gameBgmAudio: HTMLAudioElement | null = null;
   private gameOverAudio: HTMLAudioElement | null = null;
 
+  /** Cached HTMLAudioElement per src path, so BGM files are fetched/decoded once. */
+  private bgmAudioCache: Map<string, HTMLAudioElement> = new Map();
+
   private fadeOutTimerId: ReturnType<typeof setTimeout> | null = null;
   private fadeOutIntervalId: ReturnType<typeof setInterval> | null = null;
 
@@ -91,7 +99,7 @@ export class SoundManager {
 
   set bgmVolume(value: number) {
     this._bgmVolume = Math.max(0, Math.min(1, value));
-    setBgmVolume(this._bgmVolume);
+    persistBgmVolume(this._bgmVolume);
 
     // Apply to all active BGM audio elements immediately
     if (this.titleBgmAudio) {
@@ -111,11 +119,21 @@ export class SoundManager {
 
   set sfxVolume(value: number) {
     this._sfxVolume = Math.max(0, Math.min(1, value));
-    setSfxVolume(this._sfxVolume);
+    persistSfxVolume(this._sfxVolume);
 
     if (this.sfxGainNode) {
       this.sfxGainNode.gain.value = this._sfxVolume;
     }
+  }
+
+  /** Method form of the bgmVolume setter (React components must not assign to props). */
+  setBgmVolume(value: number): void {
+    this.bgmVolume = value;
+  }
+
+  /** Method form of the sfxVolume setter (React components must not assign to props). */
+  setSfxVolume(value: number): void {
+    this.sfxVolume = value;
   }
 
   // --- Title BGM ---
@@ -129,6 +147,11 @@ export class SoundManager {
   stopTitleBgm(): void {
     this.stopAndCleanupAudio(this.titleBgmAudio);
     this.titleBgmAudio = null;
+  }
+
+  /** True when title BGM exists and is currently playing (not paused). */
+  isTitleBgmActive(): boolean {
+    return this.titleBgmAudio !== null && !this.titleBgmAudio.paused;
   }
 
   // --- Game BGM ---
@@ -216,6 +239,18 @@ export class SoundManager {
     this.stopBgm();
     this.stopGameOverMusic();
 
+    // Fully tear down cached BGM elements
+    for (const audio of this.bgmAudioCache.values()) {
+      try {
+        audio.pause();
+        audio.src = '';
+        audio.load();
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+    this.bgmAudioCache.clear();
+
     if (this.audioContext && this.audioContext.state !== 'closed') {
       this.audioContext.close().catch(() => {
         // Ignore close errors
@@ -228,7 +263,17 @@ export class SoundManager {
   // --- Private helpers: BGM ---
 
   private createBgmAudio(src: string, loop: boolean): HTMLAudioElement {
-    const audio = new Audio(src);
+    let audio = this.bgmAudioCache.get(src);
+    if (!audio) {
+      audio = new Audio(src);
+      this.bgmAudioCache.set(src, audio);
+    } else {
+      try {
+        audio.currentTime = 0;
+      } catch {
+        // Ignore seek errors on elements that have not loaded yet
+      }
+    }
     audio.loop = loop;
     audio.volume = this._bgmVolume;
     return audio;
@@ -254,16 +299,18 @@ export class SoundManager {
 
   private resumeAudioSafe(audio: HTMLAudioElement | null): void {
     if (!audio) return;
+    // Do not replay a finished non-loop track (e.g. game-over music) from the start
+    if (audio.ended) return;
     this.playAudioSafe(audio);
   }
 
   private stopAndCleanupAudio(audio: HTMLAudioElement | null): void {
     if (!audio) return;
     try {
+      // Elements are cached per src, so just stop playback — do not clear
+      // src or call load(), which would force a re-fetch on next start.
       audio.pause();
       audio.currentTime = 0;
-      audio.src = '';
-      audio.load();
     } catch {
       // Ignore cleanup errors
     }
@@ -314,6 +361,12 @@ export class SoundManager {
     if (this._sfxVolume <= 0) return;
     if (!this.audioContext || !this.sfxGainNode) return;
 
+    // iOS suspends the context after interruptions (backgrounding, calls);
+    // SFX play from user gestures, so resuming here is allowed.
+    if (this.audioContext.state !== 'running') {
+      this.audioContext.resume().catch(() => {});
+    }
+
     const ctx = this.audioContext;
     const now = ctx.currentTime;
     const durationSec = tone.durationMs / 1000;
@@ -329,6 +382,12 @@ export class SoundManager {
   private playTwoToneSequence(definition: TwoToneDefinition): void {
     if (this._sfxVolume <= 0) return;
     if (!this.audioContext || !this.sfxGainNode) return;
+
+    // iOS suspends the context after interruptions (backgrounding, calls);
+    // SFX play from user gestures, so resuming here is allowed.
+    if (this.audioContext.state !== 'running') {
+      this.audioContext.resume().catch(() => {});
+    }
 
     const ctx = this.audioContext;
     let startTime = ctx.currentTime;

@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { colors } from '../theme/colors';
 import { MathProblem } from '../domain/models';
 
@@ -7,7 +8,9 @@ interface MathProblemDisplayProps {
   problem: MathProblem | null;
 }
 
-export function MathProblemDisplay({ problem }: MathProblemDisplayProps) {
+export const MathProblemDisplay = memo(function MathProblemDisplay({
+  problem,
+}: MathProblemDisplayProps) {
   if (!problem) return null;
 
   return (
@@ -23,4 +26,4 @@ export function MathProblemDisplay({ problem }: MathProblemDisplayProps) {
       </span>
     </div>
   );
-}
+});

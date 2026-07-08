@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { colors } from '../theme/colors';
 import { getHighScore } from '../data/scoreStore';
 import { SettingsSheet } from './SettingsSheet';
@@ -13,15 +13,15 @@ interface TitleScreenProps {
 
 export function TitleScreen({ onStartGame, soundManager }: TitleScreenProps) {
   const [showSettings, setShowSettings] = useState(false);
-  const [highScore, setHighScore] = useState(0);
+  // Lazy init is safe: this component only mounts client-side (page gates on SoundManager)
+  const [highScore] = useState(() => getHighScore());
+  const [hasFinePointer] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches,
+  );
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const bgImageRef = useRef<HTMLImageElement | null>(null);
   const bgOffsetRef = useRef(0);
   const rafRef = useRef(0);
-
-  useEffect(() => {
-    setHighScore(getHighScore());
-  }, []);
 
   // Scrolling background animation
   useEffect(() => {
@@ -44,9 +44,15 @@ export function TitleScreen({ onStartGame, soundManager }: TitleScreenProps) {
       if (canvas && bgImg) {
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          canvas.width = canvas.offsetWidth * window.devicePixelRatio;
-          canvas.height = canvas.offsetHeight * window.devicePixelRatio;
-          ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+          const dpr = window.devicePixelRatio;
+          const targetWidth = Math.round(canvas.offsetWidth * dpr);
+          const targetHeight = Math.round(canvas.offsetHeight * dpr);
+          // Only reallocate the backing store when the size actually changed
+          if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+          }
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
           const w = canvas.offsetWidth;
           const h = canvas.offsetHeight;
@@ -73,6 +79,35 @@ export function TitleScreen({ onStartGame, soundManager }: TitleScreenProps) {
     return () => cancelAnimationFrame(rafRef.current);
   }, []);
 
+  // Start title BGM from a user gesture that stays on the title screen.
+  // Browsers' autoplay policy blocks audio until a user gesture, so BGM cannot
+  // start on plain page load — don't try to "fix" that by playing on mount.
+  // The primary gesture (click/Enter/Space) starts the game and stops title
+  // BGM, so we hook the gestures that don't leave the title screen instead.
+  const startTitleBgmIfNeeded = useCallback(() => {
+    soundManager.ensureAudioContext();
+    if (!soundManager.isTitleBgmActive()) {
+      soundManager.startTitleBgm();
+    }
+  }, [soundManager]);
+
+  // Keyboard start (Enter or Space)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (showSettings) return;
+      // Let focused controls (e.g. the settings gear) handle their own keys
+      if ((e.target as HTMLElement).closest?.('button')) return;
+      if (e.key === 'Enter' || e.key === ' ') {
+        if (e.key === ' ') e.preventDefault();
+        onStartGame();
+      } else {
+        startTitleBgmIfNeeded();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showSettings, onStartGame, startTitleBgmIfNeeded]);
+
   const handleStart = () => {
     if (!showSettings) {
       onStartGame();
@@ -90,10 +125,12 @@ export function TitleScreen({ onStartGame, soundManager }: TitleScreenProps) {
 
       {/* Settings gear icon */}
       <button
+        aria-label="Settings"
         className="absolute top-4 right-4 z-10 w-10 h-10 flex items-center justify-center rounded-full"
         style={{ color: '#ffffffB3' }}
         onClick={(e) => {
           e.stopPropagation();
+          startTitleBgmIfNeeded();
           setShowSettings(true);
         }}
       >
@@ -162,6 +199,12 @@ export function TitleScreen({ onStartGame, soundManager }: TitleScreenProps) {
             2. Enter the answer<br />
             3. Press &#x2713; to flap<br />
             4. Navigate through pipes!
+            {hasFinePointer && (
+              <>
+                <br />
+                5. Keyboard: 0-9, Enter, Bksp
+              </>
+            )}
           </p>
         </div>
 

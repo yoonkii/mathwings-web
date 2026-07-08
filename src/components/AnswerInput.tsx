@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { colors } from '../theme/colors';
 import { InputFeedback } from '../domain/models';
 
@@ -8,7 +9,7 @@ interface AnswerInputProps {
   feedback: InputFeedback;
 }
 
-export function AnswerInput({ currentInput, feedback }: AnswerInputProps) {
+export const AnswerInput = memo(function AnswerInput({ currentInput, feedback }: AnswerInputProps) {
   const borderColor =
     feedback === InputFeedback.CORRECT
       ? colors.correctGreen
@@ -32,4 +33,4 @@ export function AnswerInput({ currentInput, feedback }: AnswerInputProps) {
       </span>
     </div>
   );
-}
+});

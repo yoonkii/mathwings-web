@@ -1,4 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
+// Thin fetch client for the /api/scores route. The browser never talks to
+// Supabase directly — all access (and validation) happens server-side in
+// src/app/api/scores/route.ts, so no Supabase keys ship to the client.
 
 export interface LeaderboardEntry {
   id: string;
@@ -7,52 +9,39 @@ export interface LeaderboardEntry {
   created_at: string;
 }
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+export interface LeaderboardResponse {
+  configured: boolean;
+  scores: LeaderboardEntry[];
+}
 
-const supabase =
-  supabaseUrl && supabaseAnonKey
-    ? createClient(supabaseUrl, supabaseAnonKey)
-    : null;
-
-export function isSupabaseConfigured(): boolean {
-  return supabase !== null;
+export async function getGlobalTopScores(): Promise<LeaderboardResponse> {
+  try {
+    const res = await fetch('/api/scores');
+    if (!res.ok) return { configured: false, scores: [] };
+    const data = (await res.json()) as Partial<LeaderboardResponse>;
+    return {
+      configured: data.configured === true,
+      scores: Array.isArray(data.scores) ? data.scores : [],
+    };
+  } catch {
+    return { configured: false, scores: [] };
+  }
 }
 
 export async function submitScore(
   playerName: string,
   score: number,
 ): Promise<boolean> {
-  if (!supabase) {
-    console.error('Supabase not configured');
+  try {
+    const res = await fetch('/api/scores', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ playerName, score }),
+    });
+    if (!res.ok) return false;
+    const data = (await res.json()) as { ok?: boolean };
+    return data.ok === true;
+  } catch {
     return false;
   }
-
-  const { error } = await supabase
-    .from('leaderboard')
-    .insert({ player_name: playerName || 'Anonymous', score });
-
-  if (error) {
-    console.error('Supabase insert error:', error.message, error.details, error.hint);
-    return false;
-  }
-  return true;
-}
-
-export async function getGlobalTopScores(
-  limit = 20,
-): Promise<LeaderboardEntry[]> {
-  if (!supabase) return [];
-
-  const { data, error } = await supabase
-    .from('leaderboard')
-    .select('*')
-    .order('score', { ascending: false })
-    .limit(limit);
-
-  if (error) {
-    console.error('Supabase select error:', error.message, error.details, error.hint);
-    return [];
-  }
-  return (data as LeaderboardEntry[]) ?? [];
 }

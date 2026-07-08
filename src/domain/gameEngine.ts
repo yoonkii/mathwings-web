@@ -49,6 +49,52 @@ export class GameEngine {
   }
 
   /**
+   * Resize the game to new dimensions mid-game.
+   * Scales entity positions proportionally so gameplay continues seamlessly
+   * when the window is resized or the device rotates.
+   */
+  resize(width: number, height: number): void {
+    if (width <= 0 || height <= 0) return;
+    if (this.screenWidth <= 0 || this.screenHeight <= 0) {
+      this.initialize(width, height);
+      return;
+    }
+    if (width === this.screenWidth && height === this.screenHeight) return;
+
+    const widthRatio = width / this.screenWidth;
+    const heightRatio = height / this.screenHeight;
+
+    // Scale bird position proportionally; recompute size from sizing rules
+    const referenceDimension = Math.min(width, height);
+    const birdWidth = referenceDimension * GameConfig.BIRD_SIZE_RATIO;
+    const birdHeight = birdWidth * GameConfig.BIRD_ASPECT_RATIO;
+    this.bird = new Bird({
+      x: this.bird.x * widthRatio,
+      y: this.bird.y * heightRatio,
+      velocity: this.bird.velocity,
+      rotation: this.bird.rotation,
+      width: birdWidth,
+      height: birdHeight,
+    });
+
+    // Scale pipes proportionally
+    this.pipes = this.pipes.map(
+      (p) =>
+        new Pipe({
+          x: p.x * widthRatio,
+          gapCenterY: p.gapCenterY * heightRatio,
+          gapHeight: p.gapHeight * heightRatio,
+          width: p.width * widthRatio,
+          scored: p.scored,
+          isRedBar: p.isRedBar,
+        }),
+    );
+
+    this.screenWidth = width;
+    this.screenHeight = height;
+  }
+
+  /**
    * Update the game state for one frame.
    * Called every frame (target 60fps).
    */
@@ -62,6 +108,19 @@ export class GameEngine {
 
     // Update bird physics
     this.bird = this.physicsSystem.updateBird(this.bird, cappedDelta);
+
+    // Clamp at ceiling instead of dying (answering fast is not punished)
+    const hitboxTop = this.bird.hitboxCenterY - this.bird.hitboxRadius;
+    if (hitboxTop < 0) {
+      this.bird = new Bird({
+        x: this.bird.x,
+        y: this.bird.y - hitboxTop,
+        velocity: Math.max(0, this.bird.velocity),
+        rotation: this.bird.rotation,
+        width: this.bird.width,
+        height: this.bird.height,
+      });
+    }
 
     // Update pipes (move, remove off-screen, spawn new)
     this.updatePipes(cappedDelta);

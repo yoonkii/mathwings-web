@@ -38,6 +38,12 @@ html, body {
   touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
+  overscroll-behavior: none;
+}
+
+input, textarea {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 canvas {
@@ -69,4 +75,44 @@ canvas {
 
 .animate-gold-pulse {
   animation: goldPulse 0.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse-scale, .animate-gold-pulse {
+    animation: none;
+  }
+}
+
+.game-screen {
+  flex-direction: column;
+}
+
+.game-screen-canvas {
+  height: 60%;
+}
+
+.game-screen-input {
+  height: 40%;
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .game-screen {
+    flex-direction: row;
+  }
+
+  .game-screen-canvas {
+    width: 60%;
+    height: 100%;
+  }
+
+  .game-screen-input {
+    width: 40%;
+    height: 100%;
+  }
+}
+
+@media (hover: hover) {
+  .keypad-btn:hover:not(:disabled) {
+    filter: brightness(1.15);
+  }
 }

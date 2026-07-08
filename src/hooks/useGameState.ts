@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   Bird,
   GameState,
@@ -7,6 +7,7 @@ import {
   MathProblem,
 } from '../domain/models';
 import { GameEngine } from '../domain/gameEngine';
+import { GameConfig } from '../domain/gameConfig';
 import { addScore as addScoreToStore, getHighScore } from '../data/scoreStore';
 import { trackGameStart, trackGameOver } from '../data/analyticsClient';
 import { SoundManager } from '../audio/soundManager';
@@ -36,6 +37,7 @@ export function useGameState(soundManager: SoundManager) {
   const [inputFeedback, setInputFeedback] = useState<InputFeedback>(InputFeedback.NONE);
   const [gameOverData, setGameOverData] = useState<GameOverData | null>(null);
   const feedbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const gameOverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const initialize = useCallback((width: number, height: number) => {
     const engine = new GameEngine();
@@ -44,9 +46,16 @@ export function useGameState(soundManager: SoundManager) {
     setSnapshot(engine.getSnapshot());
   }, []);
 
-  const startGame = useCallback(() => {
+  const resize = useCallback((width: number, height: number) => {
     const engine = engineRef.current;
     if (!engine) return;
+    engine.resize(width, height);
+    setSnapshot(engine.getSnapshot());
+  }, []);
+
+  const startGame = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine || engine.getGameState() !== GameState.READY) return;
     soundManager.ensureAudioContext();
     engine.start();
     soundManager.startBgm();
@@ -72,16 +81,17 @@ export function useGameState(soundManager: SoundManager) {
       const durationSeconds = Math.round((Date.now() - gameStartTimeRef.current) / 1000);
       trackGameOver({ score: snap.score, duration_seconds: durationSeconds });
 
-      // Save score
-      const rank = addScoreToStore(snap.score);
+      // Save score (read previous best first so a tie is not a new high score)
+      const prevBest = getHighScore();
+      addScoreToStore(snap.score);
       const storedHighScore = getHighScore();
 
-      setTimeout(() => {
+      gameOverTimeoutRef.current = setTimeout(() => {
         soundManager.playGameOverMusic();
         setGameOverData({
           score: snap.score,
           highScore: storedHighScore,
-          isNewHighScore: rank === 1,
+          isNewHighScore: snap.score > prevBest,
         });
       }, 500);
     }
@@ -98,7 +108,7 @@ export function useGameState(soundManager: SoundManager) {
 
   const onDigitPressed = useCallback((digit: number) => {
     if (snapshot.gameState !== GameState.PLAYING) return;
-    if (currentInput.length >= 4) return;
+    if (currentInput.length >= GameConfig.MAX_INPUT_LENGTH) return;
     soundManager.playKeyPress();
     setCurrentInput((prev) => prev + digit.toString());
   }, [snapshot.gameState, currentInput.length, soundManager]);
@@ -144,6 +154,18 @@ export function useGameState(soundManager: SoundManager) {
     setSnapshot(engine.getSnapshot());
   }, [soundManager]);
 
+  // Clear pending timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (feedbackTimeoutRef.current) {
+        clearTimeout(feedbackTimeoutRef.current);
+      }
+      if (gameOverTimeoutRef.current) {
+        clearTimeout(gameOverTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Game loop — only runs during PLAYING state
   useGameLoop(update, snapshot.gameState === GameState.PLAYING);
 
@@ -162,6 +184,7 @@ export function useGameState(soundManager: SoundManager) {
     inputFeedback,
     gameOverData,
     initialize,
+    resize,
     startGame,
     onDigitPressed,
     onBackspacePressed,

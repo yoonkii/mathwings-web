@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { colors } from '../theme/colors';
 import { getTopScores } from '../data/scoreStore';
 import {
-  isSupabaseConfigured,
   submitScore,
   getGlobalTopScores,
   LeaderboardEntry,
@@ -25,39 +24,73 @@ export function GameOverScreen({
   onRetry,
   onMenu,
 }: GameOverScreenProps) {
-  const [topScores, setTopScores] = useState<number[]>([]);
+  // Lazy init is safe: this component only mounts client-side (page gates on SoundManager)
+  const [topScores] = useState<number[]>(() => getTopScores());
   const [globalScores, setGlobalScores] = useState<LeaderboardEntry[]>([]);
+  const [configured, setConfigured] = useState(false);
   const [playerName, setPlayerName] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(false);
   const [showGlobal, setShowGlobal] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setTopScores(getTopScores());
-
-    // Load global leaderboard if Supabase is configured
-    if (isSupabaseConfigured()) {
-      getGlobalTopScores(20).then(setGlobalScores);
-    }
+    // Load the global leaderboard once; the response says whether the
+    // server-side leaderboard is configured.
+    getGlobalTopScores().then(({ configured, scores }) => {
+      setConfigured(configured);
+      setGlobalScores(scores);
+    });
   }, []);
 
+  useEffect(() => {
+    cardRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      // Ignore Enter on the name input (posts the score) and on focused
+      // buttons (they fire their own click), so retry only triggers globally
+      if (e.key === 'Enter' && tag !== 'INPUT' && tag !== 'BUTTON') {
+        onRetry();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onRetry]);
+
   const handleSubmitScore = async () => {
-    if (submitted || !playerName.trim()) return;
+    if (submitted || submitting || !playerName.trim()) return;
+    setSubmitting(true);
+    setSubmitError(false);
     const success = await submitScore(playerName.trim(), score);
     if (success) {
       setSubmitted(true);
       // Refresh global scores
-      const updated = await getGlobalTopScores(20);
+      const { scores: updated } = await getGlobalTopScores();
       setGlobalScores(updated);
+    } else {
+      setSubmitError(true);
     }
+    setSubmitting(false);
   };
+
+  const highlightIndex = topScores.indexOf(score);
 
   return (
     <div
-      className="w-full h-full flex items-center justify-center overflow-y-auto"
+      className="w-full h-full flex overflow-y-auto px-6 py-8"
       style={{ backgroundColor: colors.gameOverBackground }}
     >
       <div
-        className="w-full max-w-sm mx-6 my-8 rounded-2xl p-6 max-h-[90vh] overflow-y-auto"
+        ref={cardRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="game-over-title"
+        tabIndex={-1}
+        className="w-full max-w-sm m-auto rounded-2xl p-6 max-h-[85dvh] overflow-y-auto outline-none"
         style={{
           backgroundColor: colors.problemBackground,
           border: `1px solid ${colors.goldAccent}4D`,
@@ -65,6 +98,7 @@ export function GameOverScreen({
       >
         {/* Game Over title */}
         <h1
+          id="game-over-title"
           className="text-center text-3xl font-bold tracking-widest"
           style={{ color: colors.wrongRed }}
         >
@@ -113,14 +147,26 @@ export function GameOverScreen({
         )}
 
         {/* Global score submission */}
-        {isSupabaseConfigured() && (
+        {configured && (
           <>
             <div className="h-4" />
             {!submitted ? (
-              <div className="flex gap-2">
+              <form
+                className="flex gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSubmitScore();
+                }}
+              >
                 <input
                   type="text"
                   placeholder="Your name"
+                  aria-label="Your name"
+                  autoComplete="nickname"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  enterKeyHint="send"
                   maxLength={20}
                   value={playerName}
                   onChange={(e) => setPlayerName(e.target.value)}
@@ -130,22 +176,19 @@ export function GameOverScreen({
                     color: colors.inputText,
                     border: `1px solid ${colors.terminalGreen}40`,
                   }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleSubmitScore();
-                  }}
                 />
                 <button
+                  type="submit"
                   className="h-10 px-4 rounded-lg text-sm font-bold tracking-wider text-white"
                   style={{
                     backgroundColor:
-                      playerName.trim() ? colors.submitButton : colors.keypadButton,
+                      playerName.trim() && !submitting ? colors.submitButton : colors.keypadButton,
                   }}
-                  onClick={handleSubmitScore}
-                  disabled={!playerName.trim()}
+                  disabled={!playerName.trim() || submitting}
                 >
                   POST
                 </button>
-              </div>
+              </form>
             ) : (
               <p
                 className="text-center text-sm font-medium tracking-wider"
@@ -154,11 +197,22 @@ export function GameOverScreen({
                 Score posted!
               </p>
             )}
+            {submitError && (
+              <>
+                <div className="h-2" />
+                <p
+                  className="text-center text-xs font-medium tracking-wider"
+                  style={{ color: colors.wrongRed }}
+                >
+                  Failed to post — try again
+                </p>
+              </>
+            )}
           </>
         )}
 
         {/* Tab buttons for local/global leaderboard */}
-        {isSupabaseConfigured() && globalScores.length > 0 && (
+        {configured && globalScores.length > 0 && (
           <>
             <div className="h-4" />
             <div className="flex gap-2 justify-center">
@@ -166,8 +220,8 @@ export function GameOverScreen({
                 className="px-4 py-1 rounded-full text-xs font-bold tracking-wider"
                 style={{
                   backgroundColor: !showGlobal ? colors.terminalGreen + '33' : 'transparent',
-                  color: !showGlobal ? colors.terminalGreen : '#ffffff66',
-                  border: `1px solid ${!showGlobal ? colors.terminalGreen + '66' : '#ffffff33'}`,
+                  color: !showGlobal ? colors.terminalGreen : '#ffffffA6',
+                  border: `1px solid ${!showGlobal ? colors.terminalGreen + '66' : '#ffffff55'}`,
                 }}
                 onClick={() => setShowGlobal(false)}
               >
@@ -177,8 +231,8 @@ export function GameOverScreen({
                 className="px-4 py-1 rounded-full text-xs font-bold tracking-wider"
                 style={{
                   backgroundColor: showGlobal ? colors.terminalGreen + '33' : 'transparent',
-                  color: showGlobal ? colors.terminalGreen : '#ffffff66',
-                  border: `1px solid ${showGlobal ? colors.terminalGreen + '66' : '#ffffff33'}`,
+                  color: showGlobal ? colors.terminalGreen : '#ffffffA6',
+                  border: `1px solid ${showGlobal ? colors.terminalGreen + '66' : '#ffffff55'}`,
                 }}
                 onClick={() => setShowGlobal(true)}
               >
@@ -211,7 +265,7 @@ export function GameOverScreen({
                   key={index}
                   rank={index + 1}
                   scoreValue={topScore}
-                  isHighlighted={topScore === score}
+                  isHighlighted={index === highlightIndex}
                 />
               ))}
             </div>

@@ -13,12 +13,16 @@ interface GameViewProps {
 export function GameView({ snapshot, onTapToStart }: GameViewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [sprites, setSprites] = useState<GameSprites | null>(null);
+  const [spriteError, setSpriteError] = useState(false);
 
   // Load sprites once
   useEffect(() => {
     loadSprites()
       .then(setSprites)
-      .catch((err) => console.error('Failed to load sprites:', err));
+      .catch((err) => {
+        console.error('Failed to load sprites:', err);
+        setSpriteError(true);
+      });
   }, []);
 
   // Render on every snapshot change (or when sprites finish loading)
@@ -65,8 +69,23 @@ export function GameView({ snapshot, onTapToStart }: GameViewProps) {
         style={{ backgroundColor: colors.skyBlue }}
       />
 
+      {/* Sprite load failure overlay */}
+      {spriteError && (
+        <div className="absolute inset-0 flex items-center justify-center px-4">
+          <div
+            className="px-6 py-3 rounded-lg text-base font-semibold text-center"
+            style={{
+              backgroundColor: colors.problemBackground,
+              color: colors.problemText,
+            }}
+          >
+            Failed to load game assets — check your connection and reload
+          </div>
+        </div>
+      )}
+
       {/* Tap to start overlay */}
-      {snapshot.gameState === GameState.READY && (
+      {snapshot.gameState === GameState.READY && !spriteError && (
         <div className="absolute inset-0 flex items-center justify-center">
           <div
             className="px-6 py-3 rounded-lg text-xl font-semibold cursor-pointer"

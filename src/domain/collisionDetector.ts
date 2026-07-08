@@ -19,10 +19,8 @@ export class CollisionDetector {
     const cy = bird.hitboxCenterY;
     const r = bird.hitboxRadius;
 
-    // Check ceiling collision
-    if (cy - r <= 0) {
-      return { hitObstacle: true, hitCeiling: true, hitFloor: false };
-    }
+    // Ceiling contact is not fatal: the engine clamps the bird instead.
+    // hitCeiling is kept in CollisionResult for compatibility, always false.
 
     // Check floor collision
     if (cy + r >= screenHeight) {
